@@ -6,7 +6,10 @@ window.addEventListener('load', () => {
 
 function initializeOptimizedShaders() {
     if (typeof THREE === 'undefined') { return; }
-    
+        //  iOS DETECTION 
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     
     function parseColorValue(colorString, element) {
@@ -144,13 +147,15 @@ function initializeOptimizedShaders() {
         });
     }
 
-    function createHeavyBlurTexture(originalTexture) {
-        return new Promise((resolve) => {
-            if (!originalTexture) {
-                resolve(null);
-                return;
-            }
-            
+function createHeavyBlurTexture(originalTexture) {
+    return new Promise((resolve) => {
+        if (!originalTexture) {
+            resolve(null);
+            return;
+        }
+        
+        // Try canvas blur first (works on desktop/Android)
+        if (!isIOS) {
             try {                
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -187,8 +192,14 @@ function initializeOptimizedShaders() {
             } catch (error) {
                 resolve(originalTexture);
             }
-        });
-    }
+        } else {
+            // iOS fallback: Apply blur effect in the main shader instead
+            console.log('iOS detected - will apply blur in shader');
+            resolve(originalTexture);
+        }
+    });
+}
+
 
     async function initShader_StepByStep(container, onComplete) {
         const state = {};
@@ -289,7 +300,9 @@ function initializeOptimizedShaders() {
                             u_background_texture: { value: state.blurredBackgroundTexture },
                             u_has_background: { value: state.blurredBackgroundTexture !== null },
                             u_background_color: { value: state.settings.backgroundColor ? new THREE.Color(parseColorValue(state.settings.backgroundColor, container) || state.settings.backgroundColor) : new THREE.Color(0, 0, 0) },
-                            u_has_bg_color: { value: state.settings.backgroundColor !== null && state.settings.backgroundColor !== '' }
+                            u_has_bg_color: { value: state.settings.backgroundColor !== null && state.settings.backgroundColor !== '' },
+                            u_is_ios: { value: isIOS }
+
                         };
                         
                         state.material = new THREE.ShaderMaterial({ 
@@ -327,6 +340,7 @@ function initializeOptimizedShaders() {
                             uniform bool u_has_background;
                             uniform vec3 u_background_color;
                             uniform bool u_has_bg_color;
+                            uniform bool u_is_ios;
                             varying vec2 vUv;
 
                             float random(vec2 st) { 
@@ -485,7 +499,7 @@ function initializeOptimizedShaders() {
                                 } else {
                                     return noiseBlob(pos, center, size, time);
                                 }
-                            }
+                            }           
 
                             void main() { 
                                 vec4 d = texture2D(u_column_lookup, vec2(vUv.x, 0.0)); 
@@ -497,14 +511,33 @@ function initializeOptimizedShaders() {
                                 vec3 backgroundColor = vec3(0.0);
                                 bool hasAnyBackground = u_has_background || u_has_bg_color;
                                 
-                                if (u_has_background) {
-                                    vec2 backgroundUV = vUv;
-                                    backgroundUV.x += o * 0.1;
-                                    vec2 clampedBackgroundUV = clamp(backgroundUV, vec2(0.0), vec2(1.0));
-                                    backgroundColor = texture2D(u_background_texture, clampedBackgroundUV).rgb * 0.85;    
-                                } else if (u_has_bg_color) {
-                                    backgroundColor = u_background_color;
+                            if (u_has_background) {
+                                vec2 backgroundUV = vUv;
+                                backgroundUV.x += o * 0.1;
+                                vec2 clampedBackgroundUV = clamp(backgroundUV, vec2(0.0), vec2(1.0));
+                                
+                                if (u_is_ios) {
+                                    vec3 blurResult = vec3(0.0);
+                                    float blurTotal = 0.0;
+                                    vec2 texelSize = vec2(1.0 / 512.0);
+                                    
+                                for(float x = -6.0; x <= 6.0; x += 1.0) {
+                                    for(float y = -6.0; y <= 6.0; y += 1.0) {
+                                        vec2 offset = vec2(x, y) * texelSize * 3.0;
+                                            vec2 sampleUV = clampedBackgroundUV + offset;
+                                            if(sampleUV.x >= 0.0 && sampleUV.x <= 1.0 && sampleUV.y >= 0.0 && sampleUV.y <= 1.0) {
+                                                blurResult += texture2D(u_background_texture, sampleUV).rgb;
+                                                blurTotal += 1.0;
+                                            }
+                                        }
+                                    }
+                                    backgroundColor = (blurResult / blurTotal) * 0.85;
+                                } else {
+                                    backgroundColor = texture2D(u_background_texture, clampedBackgroundUV).rgb * 0.85;
                                 }
+                            } else if (u_has_bg_color) {
+                                backgroundColor = u_background_color;
+                            }
 
                                 vec2 aspectCorrected = vec2(distortedUV.x * u_aspect, distortedUV.y);
                                 vec2 blob1Corrected = vec2(u_blob1_pos.x * u_aspect, u_blob1_pos.y);
