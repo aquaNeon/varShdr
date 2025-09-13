@@ -6,6 +6,7 @@ window.addEventListener('load', () => {
 
 function initializeOptimizedShaders() {
     if (typeof THREE === 'undefined') { return; }
+        //  iOS DETECTION 
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         
@@ -157,7 +158,6 @@ function initializeOptimizedShaders() {
             const originalTexture = textureData.texture;
             const originalAspect = textureData.aspect;
             
-            // Try canvas blur first (works on desktop/Android)
             if (!isIOS) {
                 try {                
                     const canvas = document.createElement('canvas');
@@ -240,6 +240,8 @@ function initializeOptimizedShaders() {
                             backgroundImage: backgroundImageUrl,
                             backgroundColor: container.getAttribute('data-bg-color') || null
                         };
+                        state.resizeTimeout = null;
+                        
                         const boundaries = generateColumnBoundaries(state.settings.columns, state.settings.widthVariation, parseInt(container.getAttribute('data-seed')) || 1234);
                         state.lookupTexture = generateLookupTexture(boundaries); 
                         
@@ -259,19 +261,17 @@ function initializeOptimizedShaders() {
                             precision: "lowp",
                             stencil: false,
                             depth: false,
-                            premultipliedAlpha: false,
-                            preserveDrawingBuffer: true // This helps prevent flashing
+                            premultipliedAlpha: false
                         });
                         state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
                         const { clientWidth, clientHeight } = container;
                         state.renderer.setSize(
                             Math.floor(clientWidth * perfConfig.resolutionScale), 
-                            Math.floor(clientHeight * perfConfig.resolutionScale),
-                            false // Don't update CSS size automatically
+                            Math.floor(clientHeight * perfConfig.resolutionScale)
                         );
                         state.renderer.domElement.style.width = '100%'; 
                         state.renderer.domElement.style.height = '100%';
-                        state.renderer.domElement.style.transition = 'opacity 0.15s ease-out';
+                        state.renderer.domElement.style.transition = 'opacity 0.1s ease-out';
                         container.appendChild(state.renderer.domElement); 
                         setTimeout(() => runStep(2), 20); 
                         break;
@@ -659,11 +659,7 @@ function initializeOptimizedShaders() {
                             lastRenderTime: 0, 
                             isHovering: false,
                             timeOffset: Math.random() * Math.PI * 2,
-                            fadeProgress: 0.0,
-                            isResizing: false,
-                            targetResolution: new THREE.Vector2(),
-                            targetAspect: 0,
-                            resizeProgress: 0
+                            fadeProgress: 0.0
                         };
                         const blobs = { 
                             b1: new THREE.Vector2(0.15, 0.7), 
@@ -682,80 +678,10 @@ function initializeOptimizedShaders() {
                             b3: new THREE.Vector2(0.85, 0.6)
                         };
                         
-                        let resizeTimeout;
-                      const handleResize = () => {
-                        clearTimeout(resizeTimeout);
-                        
-                        const { clientWidth, clientHeight } = container;
-                        const currentWidth = state.uniforms.u_resolution.value.x;
-                        const currentHeight = state.uniforms.u_resolution.value.y;
-                        
-                        resizeTimeout = setTimeout(() => {
-                            const finalWidth = container.clientWidth;
-                            const finalHeight = container.clientHeight;
-                            
-                            if (Math.abs(finalWidth - currentWidth) > 5 || Math.abs(finalHeight - currentHeight) > 5) {
-
-                                animState.isResizing = false;
-                                animState.resizeProgress = 0;
-                                
-                                animState.targetResolution.set(finalWidth, finalHeight);
-                                animState.targetAspect = finalWidth / finalHeight;
-                                animState.isResizing = true;
-
-                                state.renderer.setSize(
-                                    Math.floor(finalWidth * perfConfig.resolutionScale),
-                                    Math.floor(finalHeight * perfConfig.resolutionScale),
-                                    false
-                                );
-
-                                state.renderer.domElement.style.width = '100%';
-                                state.renderer.domElement.style.height = '100%';
-                                state.camera.updateProjectionMatrix();
-                            }
-                        }, 100);
-                    };
-
-                    if (animState.isResizing && animState.resizeProgress < 1.0) {
-                        animState.resizeProgress = Math.min(1.0, animState.resizeProgress + 0.2);
-                        
-                        const progress = animState.resizeProgress;
-                        const eased = progress * progress * (3.0 - 2.0 * progress); // Smoothstep
-                        
-                        state.uniforms.u_resolution.value.lerp(animState.targetResolution, eased);
-                        state.uniforms.u_aspect.value = THREE.MathUtils.lerp(
-                            state.uniforms.u_aspect.value, 
-                            animState.targetAspect, 
-                            eased
-                        );
-                        
-                        if (animState.resizeProgress >= 1.0) {
-                            animState.isResizing = false;
-                            state.uniforms.u_resolution.value.copy(animState.targetResolution);
-                            state.uniforms.u_aspect.value = animState.targetAspect;
-                        }
-                    }
-                        
                       const instanceController = { 
                             update: (time) => { 
                                 if (renderBudgetExceeded) return;
                                 if (time - animState.lastRenderTime < 33) return;
-                                
-                                if (animState.isResizing && animState.resizeProgress < 1.0) {
-                                    animState.resizeProgress = Math.min(1.0, animState.resizeProgress + 0.15); // Faster transition
-                                    
-                                    const easeOut = 1 - Math.pow(1 - animState.resizeProgress, 3);
-                                    
-                                    state.uniforms.u_resolution.value.lerp(animState.targetResolution, easeOut);
-                                    const currentAspect = state.uniforms.u_aspect.value;
-                                    state.uniforms.u_aspect.value = THREE.MathUtils.lerp(currentAspect, animState.targetAspect, easeOut);
-                                    
-                                    if (animState.resizeProgress >= 1.0) {
-                                        animState.isResizing = false;
-                                        state.uniforms.u_resolution.value.copy(animState.targetResolution);
-                                        state.uniforms.u_aspect.value = animState.targetAspect;
-                                    }
-                                }
                                 
                                 if (animState.fadeProgress < 1.0 && animState.isVisible) {
                                     animState.fadeProgress = Math.min(1.0, animState.fadeProgress + 0.05);
@@ -873,8 +799,25 @@ function initializeOptimizedShaders() {
                             }, 100);
                         }
                         
-                        window.addEventListener('resize', handleResize);
-                        
+                        window.addEventListener('resize', () => { 
+                            // Temporarily hide during resize to prevent flash
+                            state.renderer.domElement.style.opacity = '0.3';
+                            
+                            // Simple debounced resize
+                            clearTimeout(state.resizeTimeout);
+                            state.resizeTimeout = setTimeout(() => {
+                                const { clientWidth, clientHeight } = container; 
+                                state.renderer.setSize(clientWidth, clientHeight);
+                                state.renderer.domElement.style.width = '100%'; 
+                                state.renderer.domElement.style.height = '100%';
+                                state.uniforms.u_resolution.value.set(clientWidth, clientHeight); 
+                                state.uniforms.u_aspect.value = clientWidth / clientHeight;
+                                state.camera.updateProjectionMatrix();
+                                
+                                // Fade back in
+                                state.renderer.domElement.style.opacity = animState.isVisible ? '1' : '0';
+                            }, 150);
+                        });
                         onComplete(instanceController); 
                         break;
                 }
@@ -924,3 +867,4 @@ function initializeOptimizedShaders() {
     
     containers.forEach(container => masterObserver.observe(container));
 }
+
