@@ -683,67 +683,58 @@ function initializeOptimizedShaders() {
                         };
                         
                         let resizeTimeout;
-                        const handleResize = () => {
-                            clearTimeout(resizeTimeout);
-                            resizeTimeout = setTimeout(() => {
-                                const { clientWidth, clientHeight } = container;
+                      const handleResize = () => {
+                        clearTimeout(resizeTimeout);
+                        
+                        const { clientWidth, clientHeight } = container;
+                        const currentWidth = state.uniforms.u_resolution.value.x;
+                        const currentHeight = state.uniforms.u_resolution.value.y;
+                        
+                        resizeTimeout = setTimeout(() => {
+                            const finalWidth = container.clientWidth;
+                            const finalHeight = container.clientHeight;
+                            
+                            if (Math.abs(finalWidth - currentWidth) > 5 || Math.abs(finalHeight - currentHeight) > 5) {
+
+                                animState.isResizing = false;
+                                animState.resizeProgress = 0;
                                 
-                                const currentWidth = state.uniforms.u_resolution.value.x;
-                                const currentHeight = state.uniforms.u_resolution.value.y;
-                                
-                                if (Math.abs(clientWidth - currentWidth) > 10 || Math.abs(clientHeight - currentHeight) > 10) {
-                                    animState.targetResolution.set(clientWidth, clientHeight);
-                                    animState.targetAspect = clientWidth / clientHeight;
-                                    animState.isResizing = true;
-                                    animState.resizeProgress = 0;
-                                    
-                                    const intermediateWidth = Math.floor((currentWidth + clientWidth) / 2);
-                                    const intermediateHeight = Math.floor((currentHeight + clientHeight) / 2);
-                                    
-                                    state.renderer.setSize(
-                                        Math.floor(intermediateWidth * perfConfig.resolutionScale), 
-                                        Math.floor(intermediateHeight * perfConfig.resolutionScale),
-                                        false
-                                    );
-                                }
-                                
+                                animState.targetResolution.set(finalWidth, finalHeight);
+                                animState.targetAspect = finalWidth / finalHeight;
+                                animState.isResizing = true;
+
+                                state.renderer.setSize(
+                                    Math.floor(finalWidth * perfConfig.resolutionScale),
+                                    Math.floor(finalHeight * perfConfig.resolutionScale),
+                                    false
+                                );
+
                                 state.renderer.domElement.style.width = '100%';
                                 state.renderer.domElement.style.height = '100%';
                                 state.camera.updateProjectionMatrix();
-                            }, 50); 
-                        };
-
-                        if (animState.isResizing && animState.resizeProgress < 1.0) {
-                            animState.resizeProgress = Math.min(1.0, animState.resizeProgress + 0.25); 
-                            
-                            const easeOut = 1 - Math.pow(1 - animState.resizeProgress, 2);
-                            
-                            state.uniforms.u_resolution.value.lerp(animState.targetResolution, easeOut);
-                            state.uniforms.u_aspect.value = THREE.MathUtils.lerp(
-                                state.uniforms.u_aspect.value, 
-                                animState.targetAspect, 
-                                easeOut
-                            );
-                            
-                            if (animState.resizeProgress > 0.3) { 
-                                const currentRes = state.uniforms.u_resolution.value;
-                                state.renderer.setSize(
-                                    Math.floor(currentRes.x * perfConfig.resolutionScale),
-                                    Math.floor(currentRes.y * perfConfig.resolutionScale),
-                                    false
-                                );
                             }
-                            
-                            if (animState.resizeProgress >= 1.0) {
-                                animState.isResizing = false;
+                        }, 100);
+                    };
 
-                                state.renderer.setSize(
-                                    Math.floor(animState.targetResolution.x * perfConfig.resolutionScale),
-                                    Math.floor(animState.targetResolution.y * perfConfig.resolutionScale),
-                                    false
-                                );
-                            }
+                    if (animState.isResizing && animState.resizeProgress < 1.0) {
+                        animState.resizeProgress = Math.min(1.0, animState.resizeProgress + 0.2);
+                        
+                        const progress = animState.resizeProgress;
+                        const eased = progress * progress * (3.0 - 2.0 * progress); // Smoothstep
+                        
+                        state.uniforms.u_resolution.value.lerp(animState.targetResolution, eased);
+                        state.uniforms.u_aspect.value = THREE.MathUtils.lerp(
+                            state.uniforms.u_aspect.value, 
+                            animState.targetAspect, 
+                            eased
+                        );
+                        
+                        if (animState.resizeProgress >= 1.0) {
+                            animState.isResizing = false;
+                            state.uniforms.u_resolution.value.copy(animState.targetResolution);
+                            state.uniforms.u_aspect.value = animState.targetAspect;
                         }
+                    }
                         
                       const instanceController = { 
                             update: (time) => { 
