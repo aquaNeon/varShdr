@@ -688,23 +688,62 @@ function initializeOptimizedShaders() {
                             resizeTimeout = setTimeout(() => {
                                 const { clientWidth, clientHeight } = container;
                                 
-                                animState.targetResolution.set(clientWidth, clientHeight);
-                                animState.targetAspect = clientWidth / clientHeight;
-                                animState.isResizing = true;
-                                animState.resizeProgress = 0;
+                                const currentWidth = state.uniforms.u_resolution.value.x;
+                                const currentHeight = state.uniforms.u_resolution.value.y;
                                 
-                                state.renderer.setSize(
-                                    Math.floor(clientWidth * perfConfig.resolutionScale), 
-                                    Math.floor(clientHeight * perfConfig.resolutionScale),
-                                    false
-                                );
+                                if (Math.abs(clientWidth - currentWidth) > 10 || Math.abs(clientHeight - currentHeight) > 10) {
+                                    animState.targetResolution.set(clientWidth, clientHeight);
+                                    animState.targetAspect = clientWidth / clientHeight;
+                                    animState.isResizing = true;
+                                    animState.resizeProgress = 0;
+                                    
+                                    const intermediateWidth = Math.floor((currentWidth + clientWidth) / 2);
+                                    const intermediateHeight = Math.floor((currentHeight + clientHeight) / 2);
+                                    
+                                    state.renderer.setSize(
+                                        Math.floor(intermediateWidth * perfConfig.resolutionScale), 
+                                        Math.floor(intermediateHeight * perfConfig.resolutionScale),
+                                        false
+                                    );
+                                }
                                 
                                 state.renderer.domElement.style.width = '100%';
                                 state.renderer.domElement.style.height = '100%';
-                                
                                 state.camera.updateProjectionMatrix();
-                            }, 100); 
+                            }, 50); 
                         };
+
+                        if (animState.isResizing && animState.resizeProgress < 1.0) {
+                            animState.resizeProgress = Math.min(1.0, animState.resizeProgress + 0.25); 
+                            
+                            const easeOut = 1 - Math.pow(1 - animState.resizeProgress, 2);
+                            
+                            state.uniforms.u_resolution.value.lerp(animState.targetResolution, easeOut);
+                            state.uniforms.u_aspect.value = THREE.MathUtils.lerp(
+                                state.uniforms.u_aspect.value, 
+                                animState.targetAspect, 
+                                easeOut
+                            );
+                            
+                            if (animState.resizeProgress > 0.3) { 
+                                const currentRes = state.uniforms.u_resolution.value;
+                                state.renderer.setSize(
+                                    Math.floor(currentRes.x * perfConfig.resolutionScale),
+                                    Math.floor(currentRes.y * perfConfig.resolutionScale),
+                                    false
+                                );
+                            }
+                            
+                            if (animState.resizeProgress >= 1.0) {
+                                animState.isResizing = false;
+
+                                state.renderer.setSize(
+                                    Math.floor(animState.targetResolution.x * perfConfig.resolutionScale),
+                                    Math.floor(animState.targetResolution.y * perfConfig.resolutionScale),
+                                    false
+                                );
+                            }
+                        }
                         
                       const instanceController = { 
                             update: (time) => { 
