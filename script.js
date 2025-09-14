@@ -1,4 +1,3 @@
-
 window.addEventListener('load', () => {
     const performanceDelay = navigator.hardwareConcurrency < 4 ? 800 : 500;
     setTimeout(initializeOptimizedShaders, performanceDelay);
@@ -651,6 +650,7 @@ function initializeOptimizedShaders() {
                         break;
                         
                     case 3:
+                        let resizeTimeout;
                         const animState = { 
                             isVisible: false, 
                             lastRenderTime: 0, 
@@ -674,6 +674,11 @@ function initializeOptimizedShaders() {
                             b2: new THREE.Vector2(0.5, 0.2), 
                             b3: new THREE.Vector2(0.85, 0.6)
                         };
+
+
+
+
+
                         
                       const instanceController = { 
                             update: (time) => { 
@@ -797,13 +802,16 @@ function initializeOptimizedShaders() {
                         }
                         
                         window.addEventListener('resize', () => { 
-                            const { clientWidth, clientHeight } = container; 
-                            state.renderer.setSize(clientWidth, clientHeight);
-                            state.renderer.domElement.style.width = '100%'; 
-                            state.renderer.domElement.style.height = '100%';
-                            state.uniforms.u_resolution.value.set(clientWidth, clientHeight); 
-                            state.uniforms.u_aspect.value = clientWidth / clientHeight;
-                            state.camera.updateProjectionMatrix(); 
+                            clearTimeout(resizeTimeout);
+                            resizeTimeout = setTimeout(() => {
+                                const { clientWidth, clientHeight } = container; 
+                                state.renderer.setSize(clientWidth, clientHeight);
+                                state.renderer.domElement.style.width = '100%'; 
+                                state.renderer.domElement.style.height = '100%';
+                                state.uniforms.u_resolution.value.set(clientWidth, clientHeight); 
+                                state.uniforms.u_aspect.value = clientWidth / clientHeight;
+                                state.camera.updateProjectionMatrix(); 
+                            }, 100);
                         });
                         onComplete(instanceController); 
                         break;
@@ -854,4 +862,3 @@ function initializeOptimizedShaders() {
     
     containers.forEach(container => masterObserver.observe(container));
 }
-

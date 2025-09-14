@@ -1,4 +1,3 @@
-
 window.addEventListener('load', () => {
     const performanceDelay = navigator.hardwareConcurrency < 4 ? 800 : 500;
     setTimeout(initializeOptimizedShaders, performanceDelay);
@@ -240,7 +239,6 @@ function initializeOptimizedShaders() {
                             backgroundImage: backgroundImageUrl,
                             backgroundColor: container.getAttribute('data-bg-color') || null
                         };
-                        
                         const boundaries = generateColumnBoundaries(state.settings.columns, state.settings.widthVariation, parseInt(container.getAttribute('data-seed')) || 1234);
                         state.lookupTexture = generateLookupTexture(boundaries); 
                         
@@ -270,7 +268,6 @@ function initializeOptimizedShaders() {
                         );
                         state.renderer.domElement.style.width = '100%'; 
                         state.renderer.domElement.style.height = '100%';
-                        state.renderer.domElement.style.transition = 'opacity 0.1s ease-out';
                         container.appendChild(state.renderer.domElement); 
                         setTimeout(() => runStep(2), 20); 
                         break;
@@ -677,6 +674,9 @@ function initializeOptimizedShaders() {
                             b3: new THREE.Vector2(0.85, 0.6)
                         };
                         
+                        let resizeTimeout;
+
+                        
                       const instanceController = { 
                             update: (time) => { 
                                 if (renderBudgetExceeded) return;
@@ -798,24 +798,18 @@ function initializeOptimizedShaders() {
                             }, 100);
                         }
                         
+                        let resizeTimeout;
                         window.addEventListener('resize', () => { 
-                            // Temporarily hide during resize to prevent flash
-                            state.renderer.domElement.style.opacity = '0.3';
-                            
-                            // Simple debounced resize
-                            clearTimeout(state.resizeTimeout);
-                            state.resizeTimeout = setTimeout(() => {
+                            clearTimeout(resizeTimeout);
+                            resizeTimeout = setTimeout(() => {
                                 const { clientWidth, clientHeight } = container; 
                                 state.renderer.setSize(clientWidth, clientHeight);
                                 state.renderer.domElement.style.width = '100%'; 
                                 state.renderer.domElement.style.height = '100%';
                                 state.uniforms.u_resolution.value.set(clientWidth, clientHeight); 
                                 state.uniforms.u_aspect.value = clientWidth / clientHeight;
-                                state.camera.updateProjectionMatrix();
-                                
-                                // Fade back in
-                                state.renderer.domElement.style.opacity = animState.isVisible ? '1' : '0';
-                            }, 150);
+                                state.camera.updateProjectionMatrix(); 
+                            }, 100);
                         });
                         onComplete(instanceController); 
                         break;
@@ -866,4 +860,3 @@ function initializeOptimizedShaders() {
     
     containers.forEach(container => masterObserver.observe(container));
 }
-
