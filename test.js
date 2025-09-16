@@ -650,6 +650,7 @@ function initializeOptimizedShaders() {
                         break;
                         
                     case 3:
+                        let resizeTimeout;
                         const animState = { 
                             isVisible: false, 
                             lastRenderTime: 0, 
@@ -673,8 +674,10 @@ function initializeOptimizedShaders() {
                             b2: new THREE.Vector2(0.5, 0.2), 
                             b3: new THREE.Vector2(0.85, 0.6)
                         };
-                        
-                        let resizeTimeout;
+
+
+
+
 
                         
                       const instanceController = { 
@@ -798,7 +801,6 @@ function initializeOptimizedShaders() {
                             }, 100);
                         }
                         
-                        let resizeTimeout;
                         window.addEventListener('resize', () => { 
                             clearTimeout(resizeTimeout);
                             resizeTimeout = setTimeout(() => {
